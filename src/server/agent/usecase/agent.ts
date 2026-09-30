@@ -9,12 +9,13 @@ import { type Analysis } from '@server/graph/model/graph.schema';
 import { getAnalysis } from '@server/graph/usecase/getAnalysis';
 import { type Ctx } from '@server/kernel/ctx';
 import { readEnv } from '@server/kernel/env';
+import { isoNow, sendTrace, Trace } from '@server/kernel/tracing';
 import { randomBytes } from 'node:crypto';
 import 'server-only';
 import { type ChatMessageParam, createClient, type ResponseItem, type ResponsesTool, withRetry } from './client';
 import { runMock } from './mock';
 import { chatToolDefinitions, executeTool, responsesToolDefinitions } from './tools';
-import { NO_USAGE, UsageMeter } from './usage';
+import { type CallUsage, NO_USAGE, UsageMeter } from './usage';
 import { type VariantSetup, variantSetup } from './variants';
 
 /**
@@ -42,8 +43,12 @@ const MAX_TURNS = 10;
 
 export interface AgentInput {
 	messages: readonly ChatMessage[];
+	/** Groups a conversation's turns in the trace view. */
+	sessionId?: string | undefined;
 	/** Minted here when the caller has none. */
 	traceId?: string | undefined;
+	/** Who asked: the analyst in the app, `eval` for a notebook run. */
+	userId?: string | undefined;
 	/** Which rung of the ladder to run. The interface always runs the product, `step2`. */
 	variant?: Variant | undefined;
 }
@@ -53,6 +58,47 @@ interface Run {
 	messages: readonly ChatMessage[];
 	meter: UsageMeter;
 	setup: VariantSetup;
+	trace: Trace;
+}
+
+/** A copy of what was sent, taken before the loop appends to it. */
+function snapshot<T>(value: T): T {
+	return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** One model call as a generation in the trace: what went in, what came out, tokens and cost. */
+function recordGeneration(
+	run: Run,
+	call: { input: unknown; output: unknown; startTime: string; usage: CallUsage },
+): void {
+	run.trace.generation({
+		costUsd: call.usage.costUsd,
+		endTime: isoNow(),
+		input: call.input,
+		model: readEnv().LLM_MODEL,
+		name: `model call ${run.meter.total().modelCalls}`,
+		output: call.output,
+		startTime: call.startTime,
+		usage: call.usage.tokens,
+	});
+}
+
+/** Runs one tool through the dispatcher and records it as a span. The dispatcher never throws. */
+function runTool(ctx: Ctx, input: { args: Record<string, unknown>; name: string; run: Run }): ToolCall {
+	const startTime = isoNow();
+	const executed = executeTool(ctx, { args: input.args, name: input.name });
+
+	input.run.trace.span({
+		endTime: isoNow(),
+		input: input.args,
+		level: executed.status === 'error' ? 'ERROR' : 'DEFAULT',
+		metadata: { durationMs: executed.durationMs, label: executed.label },
+		name: `tool ${executed.name}`,
+		output: executed.result,
+		startTime,
+	});
+
+	return executed;
 }
 
 /** A model can emit malformed JSON. An empty object gets a validation error from the tool, which
@@ -138,6 +184,8 @@ async function runResponses(ctx: Ctx, run: Run): Promise<TurnResult> {
 	];
 
 	for (let turn = 0; turn < MAX_TURNS; turn += 1) {
+		const startTime = isoNow();
+		const sent = snapshot(conversation);
 		// eslint-disable-next-line no-await-in-loop -- an agent loop is a sequence, not a batch
 		const response = await withRetry(() =>
 			client.responses.create({
@@ -150,7 +198,12 @@ async function runResponses(ctx: Ctx, run: Run): Promise<TurnResult> {
 			}),
 		);
 
-		run.meter.add({ input: response.usage?.input_tokens, output: response.usage?.output_tokens });
+		recordGeneration(run, {
+			input: sent,
+			output: response.output,
+			startTime,
+			usage: run.meter.add({ input: response.usage?.input_tokens, output: response.usage?.output_tokens }),
+		});
 
 		// The model's own items go back in verbatim, reasoning included — dropping them is what
 		// makes a reasoning model repeat a tool call it has already made.
@@ -163,7 +216,7 @@ async function runResponses(ctx: Ctx, run: Run): Promise<TurnResult> {
 		}
 
 		for (const call of requested) {
-			const executed = executeTool(ctx, { args: parseArgs(call.arguments), name: call.name });
+			const executed = runTool(ctx, { args: parseArgs(call.arguments), name: call.name, run });
 
 			toolCalls.push(executed);
 			conversation.push({
@@ -197,6 +250,8 @@ async function runChat(ctx: Ctx, run: Run): Promise<TurnResult> {
 	];
 
 	for (let turn = 0; turn < MAX_TURNS; turn += 1) {
+		const startTime = isoNow();
+		const sent = snapshot(conversation);
 		// eslint-disable-next-line no-await-in-loop -- see above
 		const completion = await withRetry(() =>
 			client.chat.completions.create({
@@ -206,9 +261,14 @@ async function runChat(ctx: Ctx, run: Run): Promise<TurnResult> {
 			}),
 		);
 
-		run.meter.add({ input: completion.usage?.prompt_tokens, output: completion.usage?.completion_tokens });
-
 		const choice = completion.choices[0]?.message;
+
+		recordGeneration(run, {
+			input: sent,
+			output: choice ?? null,
+			startTime,
+			usage: run.meter.add({ input: completion.usage?.prompt_tokens, output: completion.usage?.completion_tokens }),
+		});
 
 		if (choice === undefined) break;
 
@@ -219,9 +279,10 @@ async function runChat(ctx: Ctx, run: Run): Promise<TurnResult> {
 		conversation.push(choice);
 
 		for (const requested of choice.tool_calls.filter((candidate) => candidate.type === 'function')) {
-			const executed = executeTool(ctx, {
+			const executed = runTool(ctx, {
 				args: parseArgs(requested.function.arguments),
 				name: requested.function.name,
+				run,
 			});
 
 			toolCalls.push(executed);
@@ -255,20 +316,87 @@ function dispatch(ctx: Ctx, input: { agent: AgentInput; run: Run }): Promise<Tur
 	}
 }
 
+/**
+ * The scripted agent runs its tools itself, inside `mock.ts`; they are recorded here from what it
+ * returned, so a mock turn's trace shows its tool calls like any other.
+ */
+function recordScriptedTools(trace: Trace, toolCalls: readonly ToolCall[]): void {
+	const at = isoNow();
+
+	for (const call of toolCalls) {
+		trace.span({
+			endTime: at,
+			input: call.arguments,
+			level: call.status === 'error' ? 'ERROR' : 'DEFAULT',
+			metadata: { durationMs: call.durationMs, label: call.label, scripted: true },
+			name: `tool ${call.name}`,
+			output: call.result,
+			startTime: at,
+		});
+	}
+}
+
+/**
+ * Runs one turn and sends its trace.
+ *
+ * The trace is sent before the answer is returned, and awaited: a notebook that checks its traces
+ * right after a run must find them. `sendTrace` never throws and gives up after five seconds, so a
+ * tracker outage costs at most that, never the answer. A turn that fails is traced too — marked
+ * `ERROR`, with the error's class and not its message, which can carry an endpoint or a key.
+ */
 export async function runAgent(ctx: Ctx, input: AgentInput): Promise<ChatResponse> {
 	// `performance.now` rather than `ctx.now`: this measures elapsed time, it does not ask what
 	// time it is. Business rules still read the clock only through `ctx`.
 	const started = performance.now();
+	const env = readEnv();
 	const variant = input.variant ?? 'step2';
+	const traceId = input.traceId ?? newTraceId();
 	const meter = new UsageMeter();
-	const run: Run = { messages: input.messages, meter, setup: variantSetup(variant, analysisFor(ctx)) };
-	const result = await dispatch(ctx, { agent: input, run });
+	const trace = new Trace({
+		input: input.messages.at(-1)?.content ?? '',
+		metadata: { model: env.LLM_MODEL, provider: env.LLM_PROVIDER, turns: input.messages.length, variant },
+		name: 'agent turn',
+		sessionId: input.sessionId,
+		tags: [variant, env.LLM_PROVIDER],
+		traceId,
+		userId: input.userId,
+	});
+	const run: Run = { messages: input.messages, meter, setup: variantSetup(variant, analysisFor(ctx)), trace };
 
-	return {
+	let result: TurnResult;
+
+	try {
+		result = await dispatch(ctx, { agent: input, run });
+	} catch (cause) {
+		await sendTrace(
+			trace.finish({
+				level: 'ERROR',
+				metadata: {
+					error: cause instanceof Error ? cause.name : 'unknown',
+					latencyMs: Math.round(performance.now() - started),
+				},
+				output: null,
+			}),
+		);
+		throw cause;
+	}
+
+	if (env.LLM_PROVIDER === 'mock') recordScriptedTools(trace, result.toolCalls);
+
+	const response: ChatResponse = {
 		...result,
 		latencyMs: Math.round(performance.now() - started),
-		traceId: input.traceId ?? newTraceId(),
-		usage: readEnv().LLM_PROVIDER === 'mock' ? NO_USAGE : meter.total(),
+		traceId,
+		usage: env.LLM_PROVIDER === 'mock' ? NO_USAGE : meter.total(),
 		variant,
 	};
+
+	await sendTrace(
+		trace.finish({
+			metadata: { latencyMs: response.latencyMs, toolCalls: result.toolCalls.length, usage: response.usage },
+			output: response.reply,
+		}),
+	);
+
+	return response;
 }

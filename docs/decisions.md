@@ -105,3 +105,13 @@ one (six calls): acceptable live, and the mock stays the default for reviewers.
 
 **16:45 — Layout: ForceAtlas2 with dissuaded hubs and strong gravity, 500 iterations (the lead, in the agent owner's `layout.ts` with his agreement).**
 Five settings were rendered side by side on the real data. The inferred defaults gave one dense ball; LinLog an even disc. `outboundAttractionDistribution` + `scalingRatio 10` + `strongGravityMode` (gravity 0.05) shows distributors as fans and consolidator groups apart, which is what the analyst needs to see at a glance. ~6 s pipeline. Chosen over: the defaults (no structure) and LinLog (no structure, slower).
+
+**30.09 — Tracing to Langfuse over OTLP/HTTP JSON, no SDK (course project).**
+`src/server/kernel/tracing.ts`. One turn is one trace: a root span «agent turn» (session, user,
+tags, input, output), one `generation` span per model call (model, tokens, cost) and one `tool`
+span per tool call. Scores go to `POST /api/public/scores`. Found on the first live run: the
+`/api/public/ingestion` endpoint answers 207 and **drops the events** for organisations created
+after 16 September 2026, and the legacy read APIs answer 410. Caught only because the trace was
+read back through `GET /api/public/v2/observations`, not trusted from the absence of an error.
+Chosen over: the Langfuse JS SDK (four OpenTelemetry packages and a global provider for one POST
+per turn) and the ingestion endpoint (silently dead for this account).

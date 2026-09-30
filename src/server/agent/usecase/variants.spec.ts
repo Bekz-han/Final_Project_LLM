@@ -4,9 +4,10 @@ import { type Analysis, type RawGraph } from '@server/graph/model/graph.schema';
 import { analyze } from '@server/graph/usecase/analyze';
 import { type Ctx } from '@server/kernel/ctx';
 import { resetEnvCache } from '@server/kernel/env';
+import { type OtlpSpan } from '@server/kernel/tracing';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The ladder is only a measurement if each rung changes one thing. These pin what each rung hands
@@ -171,6 +172,31 @@ describe('the measurements on every answer', () => {
 	});
 });
 
+/** The spans of an OTLP request body, with attributes flattened to plain values. */
+function spansOf(body: string): {
+	attrs: Record<string, unknown>;
+	name: string;
+	status: { code: number };
+	traceId: string;
+}[] {
+	const parsed = JSON.parse(body) as {
+		resourceSpans?: { scopeSpans: { spans: OtlpSpan[] }[] }[];
+	};
+	const spans = parsed.resourceSpans?.[0]?.scopeSpans[0]?.spans ?? [];
+
+	return spans.map((span) => ({
+		attrs: Object.fromEntries(
+			span.attributes.map(({ key, value }) => [
+				key,
+				'arrayValue' in value ? value.arrayValue.values.map((item) => item.stringValue) : Object.values(value)[0],
+			]),
+		),
+		name: span.name,
+		status: span.status,
+		traceId: span.traceId,
+	}));
+}
+
 describe('the few-shot examples', () => {
 	/** An example that is also an evaluation question is a leak: the rung would be graded on its own answer key. */
 	it('share no question with the frozen evaluation set', () => {
@@ -196,5 +222,87 @@ describe('the few-shot examples', () => {
 			expect(analysis).not.toContain(`"${gid}"`);
 			expect(evalSet).not.toContain(gid);
 		}
+	});
+});
+
+describe('the trace of a turn', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		delete process.env.LANGFUSE_PUBLIC_KEY;
+		delete process.env.LANGFUSE_SECRET_KEY;
+	});
+
+	/** What the course grades: every step visible, with its tokens and cost, under a session and a user. */
+	it('has one generation per model call, one span per tool, and the session, user and rung', async () => {
+		process.env.LANGFUSE_PUBLIC_KEY = 'pk-test';
+		process.env.LANGFUSE_SECRET_KEY = 'sk-test';
+
+		const bodies: string[] = [];
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((_url: string, init: RequestInit) => {
+				bodies.push(typeof init.body === 'string' ? init.body : '');
+
+				return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+			}),
+		);
+		fake.replies.push(toolCall('get_top_nodes', { limit: 5 }), answer('Первым — …'));
+
+		const result = await runAgent(ctx, {
+			messages: [QUESTION],
+			sessionId: 'session-7',
+			traceId: 'c'.repeat(32),
+			userId: 'eval',
+			variant: 'step2',
+		});
+		const spans = spansOf(bodies[0] ?? '{}');
+
+		expect(spans.map((span) => [span.name, span.attrs['langfuse.observation.type']])).toEqual([
+			['agent turn', 'agent'],
+			['model call 1', 'generation'],
+			['tool get_top_nodes', 'tool'],
+			['model call 2', 'generation'],
+		]);
+		expect(spans.every((span) => span.traceId === 'c'.repeat(32))).toBe(true);
+		expect(spans[0]?.attrs).toMatchObject({
+			'langfuse.session.id': 'session-7',
+			'langfuse.trace.output': result.reply,
+			'langfuse.trace.tags': ['step2', 'responses'],
+			'langfuse.user.id': 'eval',
+		});
+		expect(JSON.parse(String(spans[1]?.attrs['langfuse.observation.usage_details']))).toEqual({
+			input: 300,
+			output: 10,
+			total: 310,
+		});
+		expect(JSON.parse(String(spans[2]?.attrs['langfuse.observation.input']))).toEqual({ limit: 5 });
+	});
+
+	it('is still sent, marked ERROR, when the model call fails — and the failure reaches the caller', async () => {
+		process.env.LANGFUSE_PUBLIC_KEY = 'pk-test';
+		process.env.LANGFUSE_SECRET_KEY = 'sk-test';
+
+		const bodies: string[] = [];
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((_url: string, init: RequestInit) => {
+				bodies.push(typeof init.body === 'string' ? init.body : '');
+
+				return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+			}),
+		);
+		// No scripted reply: the fake client resolves to undefined and the loop fails reading it.
+
+		await expect(runAgent(ctx, { messages: [QUESTION], variant: 'step0' })).rejects.toThrow();
+
+		const [root] = spansOf(bodies[0] ?? '{}');
+
+		expect(root?.attrs).toMatchObject({
+			'langfuse.observation.level': 'ERROR',
+			'langfuse.trace.metadata.error': 'TypeError',
+		});
+		expect(root?.status.code).toBe(2);
 	});
 });

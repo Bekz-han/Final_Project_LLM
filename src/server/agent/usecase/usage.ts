@@ -9,6 +9,11 @@ import 'server-only';
  * each time — so the cost of an answer is the sum, never the last call. The prices come from the
  * environment because they belong to the provider and change without our code changing.
  */
+export interface CallUsage {
+	costUsd: { input: number; output: number };
+	tokens: { input: number; output: number };
+}
+
 export class UsageMeter {
 	private calls = 0;
 
@@ -16,11 +21,25 @@ export class UsageMeter {
 
 	private output = 0;
 
-	/** Either dialect's usage object; a provider that omits it counts as zero, not as a crash. */
-	add(usage: { input?: number | undefined; output?: number | undefined } | undefined): void {
+	/**
+	 * Either dialect's usage object; a provider that omits it counts as zero, not as a crash. Returns
+	 * this one call's tokens and cost, which the trace records per generation.
+	 */
+	add(usage: { input?: number | undefined; output?: number | undefined } | undefined): CallUsage {
+		const call = { input: usage?.input ?? 0, output: usage?.output ?? 0 };
+		const env = readEnv();
+
 		this.calls += 1;
-		this.input += usage?.input ?? 0;
-		this.output += usage?.output ?? 0;
+		this.input += call.input;
+		this.output += call.output;
+
+		return {
+			costUsd: {
+				input: (call.input / 1e6) * env.LLM_PRICE_INPUT_PER_MTOK,
+				output: (call.output / 1e6) * env.LLM_PRICE_OUTPUT_PER_MTOK,
+			},
+			tokens: call,
+		};
 	}
 
 	total(): Usage {
