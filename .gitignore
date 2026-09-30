@@ -46,3 +46,6 @@ yarn.lock
 # Marker written by `pnpm gate:unlock`. Its presence disables the protectGate hook, so it
 # must never be committed — a checked-in marker would silently unlock every clone.
 .claude/.gate-unlocked
+
+# Conversations and ratings (STATE_DIR). Runtime data, never committed.
+/state/

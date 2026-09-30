@@ -93,6 +93,12 @@ const envSchema = z
 				.default('false')
 				.transform((value) => value === 'true'),
 		),
+
+		/**
+		 * Where conversations and ratings are kept, relative to the working directory. In Docker it
+		 * is `/app/state`, a named volume, so they survive a restart and an image rebuild.
+		 */
+		STATE_DIR: z.preprocess(blank, z.string().min(1).default('state')),
 	})
 	.refine((env) => env.LLM_PROVIDER === 'mock' || Boolean(env.LLM_API_KEY), {
 		error: 'LLM_API_KEY is required unless LLM_PROVIDER=mock',

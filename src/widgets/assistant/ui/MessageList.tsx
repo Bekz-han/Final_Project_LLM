@@ -1,9 +1,10 @@
 'use client';
 
-import { type ChatMessage } from '@server/agent/model/agent.schema';
 import { Avatar } from '@shared/ui/Avatar';
+import { Button } from '@shared/ui/Button';
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
+import { type ChatTurn } from '../model/useChat';
 import { GidText } from './GidText';
 
 /** The agent is thinking: same bubble geometry as a real reply, so the column does not jump. */
@@ -24,14 +25,52 @@ function PendingBubble() {
 	);
 }
 
+/**
+ * 👍 / 👎 under an answer. The pressed one is marked by shape (a bordered button) and by
+ * `aria-pressed`, not by colour alone, and by a word once chosen.
+ */
+function Rating({ feedback, onRate }: { feedback: 0 | 1 | undefined; onRate: (value: 0 | 1) => void }) {
+	const options = [
+		{ emoji: '👍', label: 'Полезный ответ', value: 1 },
+		{ emoji: '👎', label: 'Бесполезный ответ', value: 0 },
+	] as const;
+
+	return (
+		<div aria-label="Оценка ответа" className="flex items-center gap-1" role="group">
+			{options.map((option) => (
+				<Button
+					aria-label={option.label}
+					aria-pressed={feedback === option.value}
+					className="h-7 px-2"
+					key={option.value}
+					onClick={() => {
+						onRate(option.value);
+					}}
+					size="sm"
+					variant={feedback === option.value ? 'secondary' : 'ghost'}
+				>
+					{option.emoji}
+				</Button>
+			))}
+			{feedback !== undefined && (
+				<span className="text-fg-subtle text-xs">
+					{feedback === 1 ? 'отмечено: полезно' : 'отмечено: не помогло'}
+				</span>
+			)}
+		</div>
+	);
+}
+
 export interface MessageListProps {
 	emptyHint: string;
-	messages: readonly ChatMessage[];
+	messages: readonly ChatTurn[];
 	onGidClick?: (gid: string) => void;
+	/** Rating an answer; without it the buttons are not shown. */
+	onRate?: (index: number, value: 0 | 1) => void;
 	pending: boolean;
 }
 
-export function MessageList({ emptyHint, messages, onGidClick, pending }: MessageListProps) {
+export function MessageList({ emptyHint, messages, onGidClick, onRate, pending }: MessageListProps) {
 	const endRef = useRef<HTMLLIElement>(null);
 
 	// In a side panel the newest reply is below the fold unless the list follows it.
@@ -60,16 +99,27 @@ export function MessageList({ emptyHint, messages, onGidClick, pending }: Messag
 					>
 						<Avatar colorKey={mine ? 'you' : 'agent'} name={mine ? 'Вы' : 'Ассистент'} size="sm" />
 
-						<div
-							className={clsx(
-								'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap',
-								mine
-									? 'bg-accent text-on-accent rounded-br-none'
-									: 'bg-surface text-fg border-border rounded-bl-none border',
+						<div className={clsx('flex max-w-[85%] flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+							<div
+								className={clsx(
+									'rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap',
+									mine
+										? 'bg-accent text-on-accent rounded-br-none'
+										: 'bg-surface text-fg border-border rounded-bl-none border',
+								)}
+							>
+								{/* Only the assistant's gids are links: they come from tool results. */}
+								{mine ? message.content : <GidText onGidClick={onGidClick} text={message.content} />}
+							</div>
+
+							{!mine && message.traceId !== undefined && onRate !== undefined && (
+								<Rating
+									feedback={message.feedback}
+									onRate={(value) => {
+										onRate(index, value);
+									}}
+								/>
 							)}
-						>
-							{/* Only the assistant's gids are links: they come from tool results. */}
-							{mine ? message.content : <GidText onGidClick={onGidClick} text={message.content} />}
 						</div>
 					</li>
 				);

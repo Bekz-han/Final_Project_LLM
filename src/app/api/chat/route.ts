@@ -1,5 +1,6 @@
 import { chatRequestSchema, chatResponseSchema } from '@server/agent/model/agent.schema';
 import { newTraceId, runAgent } from '@server/agent/usecase/agent';
+import { saveExchange } from '@server/agent/usecase/sessions';
 import { createCtx } from '@server/kernel/ctx';
 
 /**
@@ -34,7 +35,25 @@ export async function POST(request: Request): Promise<Response> {
 	const traceId = newTraceId();
 
 	try {
-		const result = await runAgent(createCtx(), { ...parsedInput.data, traceId });
+		const ctx = createCtx();
+		const result = await runAgent(ctx, { ...parsedInput.data, traceId });
+		const { messages, sessionId } = parsedInput.data;
+
+		if (sessionId !== undefined) {
+			// The answer is already made; a disk that refuses the record must not take it away.
+			try {
+				saveExchange(ctx, {
+					answer: result.reply,
+					id: sessionId,
+					question: messages.at(-1)?.content ?? '',
+					traceId: result.traceId,
+				});
+			} catch (cause) {
+				process.stderr.write(
+					`Session ${sessionId} not saved: ${cause instanceof Error ? cause.message : String(cause)}\n`,
+				);
+			}
+		}
 
 		return Response.json(chatResponseSchema.parse(result));
 	} catch (error) {

@@ -1,0 +1,28 @@
+# One command:
+#
+#   cp .env.example .env      # works as is (scripted mode); add LLM_API_KEY for the live model
+#   docker compose up --build
+#
+# Then http://localhost:3000, and http://localhost:3000/api/health for the service's own view.
+#
+# The conversations and ratings live in the named volume `state`, so `docker compose restart`,
+# `down` and `up`, and a rebuild of the image all keep them. `docker compose down -v` deletes them.
+
+services:
+   app:
+      build: .
+      image: money-graph:latest
+      env_file:
+         # Optional, so a clone with no .env still starts, in scripted mode.
+         - path: .env
+           required: false
+      environment:
+         STATE_DIR: /app/state
+      ports:
+         - '${PORT:-3000}:3000'
+      volumes:
+         - state:/app/state
+      restart: unless-stopped
+
+volumes:
+   state:

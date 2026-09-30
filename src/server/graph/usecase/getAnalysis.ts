@@ -17,7 +17,11 @@ import 'server-only';
  *
  * The directory is `output/` under the process's working directory, which for `next dev` and
  * `next start` is the project root — the same place `pnpm pipeline` writes to.
+ *
+ * The ignore comment tells Next's file tracer not to follow this path. Left to itself it cannot
+ * tell which file a runtime path names, so it copies the whole project — sources, data, docs — into
+ * the standalone server. The Docker image copies `output/` itself, explicitly (see `Dockerfile`).
  */
 export function getAnalysis(_ctx: Ctx): Analysis | null {
-	return readAnalysis(resolve(process.cwd(), OUTPUT_DIR));
+	return readAnalysis(resolve(/* turbopackIgnore: true */ process.cwd(), OUTPUT_DIR));
 }

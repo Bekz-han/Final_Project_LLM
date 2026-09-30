@@ -1,0 +1,14 @@
+# Keys stay on the host: every .env but the example.
+.env*
+!.env.example
+
+# Rebuilt inside the image.
+node_modules
+.next
+.cache
+tsconfig.tsbuildinfo
+
+# Runtime data and local tooling.
+state
+.git
+.claude

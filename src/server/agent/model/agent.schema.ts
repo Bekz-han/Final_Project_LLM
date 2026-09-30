@@ -51,9 +51,15 @@ const traceLabelSchema = z
 	.max(100)
 	.regex(/^[\w.:@-]+$/u, 'Letters, digits and . _ : @ - only.');
 
+/**
+ * A session id doubles as a file name on the server, so its alphabet is the trace label's: no
+ * dots-only names, no slashes, nothing a path can be built from.
+ */
+export const sessionIdSchema = traceLabelSchema.refine((value) => !/^\.+$/u.test(value), 'Not a session id.');
+
 export const chatRequestSchema = z.object({
 	messages: z.array(chatMessageSchema).min(1),
-	sessionId: traceLabelSchema.optional(),
+	sessionId: sessionIdSchema.optional(),
 	userId: traceLabelSchema.optional(),
 	variant: variantSchema.default('step2'),
 });
@@ -78,7 +84,26 @@ export const chatResponseSchema = z.object({
 	variant: variantSchema,
 });
 
+/** One message of a stored conversation, with what the interface needs to rate it. */
+export const storedTurnSchema = z.object({
+	at: z.string(),
+	content: z.string(),
+	/** The analyst's rating of an assistant message: 1 useful, 0 not. */
+	feedback: z.union([z.literal(0), z.literal(1)]).optional(),
+	role: z.enum(['assistant', 'user']),
+	/** On assistant messages: the trace the answer was produced under. */
+	traceId: z.string().optional(),
+});
+
+export const sessionSchema = z.object({
+	id: sessionIdSchema,
+	turns: z.array(storedTurnSchema),
+	updatedAt: z.string(),
+});
+
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type Session = z.infer<typeof sessionSchema>;
+export type StoredTurn = z.infer<typeof storedTurnSchema>;
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
 export type ToolCall = z.infer<typeof toolCallSchema>;

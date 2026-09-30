@@ -38,8 +38,9 @@ export interface AssistantProps {
 }
 
 export function Assistant({ className, compact = false, onGidClick, prefill }: AssistantProps) {
-	const { error, messages, retry, send, status, toolCalls } = useChat();
-	const pending = status === 'sending';
+	const { error, messages, rate, reset, retry, send, status, toolCalls } = useChat();
+	// Restoring a stored conversation is a wait like any other: no sending over it.
+	const pending = status === 'sending' || status === 'restoring';
 	const formRef = useRef<HTMLFormElement>(null);
 	const focusDraft = () => {
 		formRef.current?.querySelector('textarea')?.focus();
@@ -72,7 +73,8 @@ export function Assistant({ className, compact = false, onGidClick, prefill }: A
 				emptyHint="Спросите, например: кого проверять первым и почему?"
 				messages={messages}
 				onGidClick={onGidClick}
-				pending={pending}
+				onRate={rate}
+				pending={status === 'sending'}
 			/>
 
 			{error !== null && (
@@ -87,6 +89,15 @@ export function Assistant({ className, compact = false, onGidClick, prefill }: A
 			)}
 
 			<div className="border-border flex flex-col gap-2 border-t pt-3">
+				{/* The conversation is remembered across reloads, so starting over is a deliberate act. */}
+				{messages.length > 0 && (
+					<div className="flex justify-end">
+						<Button disabled={pending} onClick={reset} size="sm" variant="ghost">
+							Новый диалог
+						</Button>
+					</div>
+				)}
+
 				{/* Examples are for an empty conversation; once it has started they only steal height. */}
 				{messages.length === 0 && (
 					<div aria-label="Примеры вопросов" className="flex flex-wrap gap-1.5" role="group">
