@@ -184,7 +184,17 @@ describe('the few-shot examples', () => {
 		}
 	});
 
-	it('name no gid, so they cannot teach an answer', () => {
-		for (const example of FEW_SHOT) expect(example.content).not.toMatch(/\d{15,}/u);
+	/** A gid from the analysis would teach a fact; one from the evaluation set would leak an answer. */
+	it('name only gids that exist in neither the analysis nor the evaluation set', () => {
+		const analysis = readFileSync(resolve('output/analysis.json'), 'utf8');
+		const evalSet = readFileSync(resolve('eval/eval_set.jsonl'), 'utf8');
+		const gids = FEW_SHOT.flatMap((example) => example.content.match(/\d{15,}/gu) ?? []);
+
+		expect(gids.length).toBeGreaterThan(0);
+
+		for (const gid of gids) {
+			expect(analysis).not.toContain(`"${gid}"`);
+			expect(evalSet).not.toContain(gid);
+		}
 	});
 });

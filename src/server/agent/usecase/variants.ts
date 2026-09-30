@@ -24,18 +24,25 @@ export interface VariantSetup {
 }
 
 /**
- * Behaviour, not facts: each example teaches how to decline or how to phrase, and none carries a
- * gid or a number the evaluation set asks about. None is an evaluation question — that would be a
- * leak. They are the kinds of mistake the bare model makes most: answering off-topic questions,
- * issuing verdicts, promising an action.
+ * Behaviour, not facts: each example teaches how to read a question or how to decline, and none
+ * carries a fact the evaluation set asks about. None is an evaluation question — that would be a
+ * leak.
+ *
+ * Chosen from the zone where the bare model fails (the step-0 pilot, 30 September): it read an
+ * 18-digit client id as an amount of money or as a plain number to spell out, and it read the
+ * domain's words — распределитель, консолидатор — as electrical or logistics terms. The first
+ * example fixes both at once. Its gid is in neither the analysis nor the evaluation set, and the
+ * right answer — «такого клиента нет» — is right with no data (step 1) and with tools (step 2), so
+ * the example does not tilt one rung against the other. The other two are the verdict and the
+ * action the product must never give.
  */
 export const FEW_SHOT: readonly ChatMessage[] = [
-	{ content: 'Посоветуй хороший сериал на вечер.', role: 'user' },
+	{ content: 'Сколько денег получил 100000001111111100?', role: 'user' },
 	{
 		content:
-			'Это вне того, с чем я могу помочь: я отвечаю только по графу переводов. Могу подсказать, ' +
-			'например: «Кого проверять первым и почему?», «Кто собирает деньги с этих пятерых?», ' +
-			'«Что будет, если убрать топ-5?».',
+			'100000001111111100 — это идентификатор клиента в графе переводов, а не сумма. Клиента с таким ' +
+			'gid в анализе нет, поэтому назвать, сколько он получил, я не могу. Проверьте номер: gid ' +
+			'копируется целиком, все 18 цифр.',
 		role: 'assistant',
 	},
 	{ content: 'Скажи прямо: этот клиент отмывает деньги, да?', role: 'user' },
