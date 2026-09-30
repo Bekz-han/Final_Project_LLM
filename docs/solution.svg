@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 470" width="1260" height="470" role="img" aria-labelledby="title desc">
+	<title id="title">Граф денег: схема решения</title>
+	<desc id="desc">Четыре этапа слева направо: данные (три parquet-файла), метрики, роли, кластеры и приоритет, интерфейс (три CSV, экран Sigma.js, AI-ассистент с инструментами).</desc>
+	<defs>
+		<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+			<path d="M0,0 L10,5 L0,10 z" fill="#1f2937" />
+		</marker>
+	</defs>
+	<style>
+		text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; fill: #111827; }
+		.h { font-size: 19px; font-weight: 700; }
+		.n { font-size: 12px; font-weight: 700; fill: #4b5563; letter-spacing: 0.08em; }
+		.b { font-size: 14px; }
+		.m { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; font-size: 12px; fill: #374151; }
+		.t { font-size: 22px; font-weight: 700; }
+		.s { font-size: 14px; fill: #4b5563; }
+		.box { stroke: #1f2937; stroke-width: 2; }
+		.arr { stroke: #1f2937; stroke-width: 2.5; }
+	</style>
+
+	<!-- Solid background so the diagram reads the same in GitHub light and dark themes. -->
+	<rect x="0" y="0" width="1260" height="470" rx="16" fill="#ffffff" />
+
+	<text x="40" y="46" class="t">«Граф денег»: от выгрузки к ответу «кого проверять первым и почему»</text>
+	<text x="40" y="72" class="s">Один процесс Node.js, TypeScript целиком. Пайплайн пишет выгрузки; экран и ассистент читают тот же результат.</text>
+
+	<!-- Stage 1: data -->
+	<rect x="40" y="100" width="230" height="250" rx="12" fill="#eff6ff" class="box" />
+	<text x="58" y="126" class="n">ЭТАП 1</text>
+	<text x="58" y="154" class="h">Данные</text>
+	<text x="58" y="186" class="b">3 parquet (ZSTD):</text>
+	<text x="58" y="210" class="b">edges — 3 119 пар</text>
+	<text x="58" y="232" class="b">nodes — 2 248 клиентов,</text>
+	<text x="58" y="252" class="b">из них 81 seed</text>
+	<text x="58" y="274" class="b">transactions — 4 840</text>
+	<text x="58" y="298" class="b">июль 2026, 4 колена,</text>
+	<text x="58" y="318" class="b">порог ≥ 5 000 KZT</text>
+
+	<!-- Stage 2: metrics -->
+	<rect x="310" y="100" width="260" height="250" rx="12" fill="#f0fdf4" class="box" />
+	<text x="328" y="126" class="n">ЭТАП 2</text>
+	<text x="328" y="154" class="h">Метрики</text>
+	<text x="328" y="186" class="b">степени вход / выход</text>
+	<text x="328" y="208" class="b">суммы KZT, число переводов</text>
+	<text x="328" y="230" class="b">pass-through (не для seed)</text>
+	<text x="328" y="252" class="b">PageRank по сумме, HITS</text>
+	<text x="328" y="274" class="b">betweenness (Brandes)</text>
+	<text x="328" y="296" class="b">seedsUpstream</text>
+	<text x="328" y="318" class="b">быстрый транзит (≤ 2 дня)</text>
+
+	<!-- Stage 3: roles, clusters, priority -->
+	<rect x="610" y="100" width="300" height="250" rx="12" fill="#fff7ed" class="box" />
+	<text x="628" y="126" class="n">ЭТАП 3</text>
+	<text x="628" y="154" class="h">Роли, кластеры, приоритет</text>
+	<text x="628" y="186" class="b">6 ролей по правилам с порогами,</text>
+	<text x="628" y="208" class="b">первое совпадение побеждает</text>
+	<text x="628" y="230" class="b">флаг truncated (4-е колено)</text>
+	<text x="628" y="252" class="b">Louvain на неориентированной</text>
+	<text x="628" y="274" class="b">проекции, фиксированный seed</text>
+	<text x="628" y="296" class="b">priority_score + why</text>
+	<text x="628" y="318" class="b">evidence с числами</text>
+
+	<!-- Stage 4: interface -->
+	<rect x="950" y="100" width="270" height="250" rx="12" fill="#faf5ff" class="box" />
+	<text x="968" y="126" class="n">ЭТАП 4</text>
+	<text x="968" y="154" class="h">Интерфейс</text>
+	<text x="968" y="186" class="b">3 CSV + analysis.json</text>
+	<text x="968" y="214" class="b">экран Sigma.js (WebGL):</text>
+	<text x="968" y="236" class="b">роли, стрелки, поиск gid,</text>
+	<text x="968" y="258" class="b">карточка узла, топ-лист</text>
+	<text x="968" y="286" class="b">AI-ассистент: 7 инструментов</text>
+	<text x="968" y="308" class="b">только чтение,</text>
+	<text x="968" y="328" class="b">панель вызовов</text>
+
+	<!-- Arrows between stages -->
+	<line x1="272" y1="225" x2="306" y2="225" class="arr" marker-end="url(#arrow)" />
+	<line x1="572" y1="225" x2="606" y2="225" class="arr" marker-end="url(#arrow)" />
+	<line x1="912" y1="225" x2="946" y2="225" class="arr" marker-end="url(#arrow)" />
+
+	<!-- Module labels under each stage -->
+	<text x="44" y="378" class="m">data/*.parquet</text>
+	<text x="44" y="398" class="m">graph/repo/parquet.ts</text>
+
+	<text x="314" y="378" class="m">scripts/pipeline.ts</text>
+	<text x="314" y="398" class="m">graph/model/metrics.ts</text>
+
+	<text x="614" y="378" class="m">graph/model/roles.ts</text>
+	<text x="614" y="398" class="m">graph/model/clusters.ts, priority.ts</text>
+	<text x="614" y="418" class="m">graph/usecase/analyze.ts</text>
+
+	<text x="954" y="378" class="m">output/*.csv, analysis.json</text>
+	<text x="954" y="398" class="m">src/views/graph</text>
+	<text x="954" y="418" class="m">graph/usecase/tools.ts</text>
+
+	<text x="40" y="454" class="s">Выводы — гипотезы для проверки аналитиком, а не обвинения.</text>
+</svg>

@@ -1,0 +1,13 @@
+# Build output and caches. Next.js writes to .next; `dist` was the Vite output.
+.next/
+.cache/
+coverage/
+src/server/db/generated/
+
+pnpm-lock.yaml
+settings.local.json
+
+# Documentation is written by hand and reviewed as prose. Prettier reflows tables,
+# rewrites emphasis markers and re-indents lists, which buries the actual change in
+# a diff nobody can read. Markdown formatting is the author's.
+*.md

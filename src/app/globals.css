@@ -1,0 +1,540 @@
+/* ==========================================================================
+   Sources are declared, not detected.
+
+   Tailwind's automatic source detection produces an empty stylesheet in this
+   project, and does it silently. On its own the bare import emits zero bytes;
+   with the token blocks below it throws "RangeError: Invalid code point" out of
+   its variable scanner and still emits zero. Either way the build log is clean,
+   the dev server answers 200, and the page renders with no styling at all —
+   which is exactly how it reached a browser before anybody noticed.
+
+   Naming the directory avoids that path entirely, and is the better setting
+   regardless: the scanner has no business reading docs/, prisma/migrations/ or
+   .claude/. Verified by building this file both ways — 0 bytes against 19KB.
+   ========================================================================== */
+@import 'tailwindcss' source(none);
+@source '../';
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ==========================================================================
+   Layer 1 — palette. Raw scales. Components never reference these directly.
+   ========================================================================== */
+
+:root {
+	/* Violet, and the reason is contrast rather than taste.
+
+	   The accent has to clear 4.5:1 against white text, because that is what a primary button is.
+	   Teal cannot: #0D8A80 measures 4.23 and fails, so the accent was forced down to #0F6E67,
+	   which is dark and low-chroma — and a projector, which crushes saturation in dark tones,
+	   renders it as near-black. The primary button stops looking primary.
+
+	   Violet clears the bar while still being vivid: #9333EA measures 5.38. It is also the only
+	   vivid hue that collides with none of the four semantic hues — success green, warning amber,
+	   danger red, info blue — which matters because the agent activity panel keeps ok-green and
+	   failed-red on screen next to accent-coloured controls all the time. */
+	--brand-50: #faf5ff;
+	--brand-100: #f3e8ff;
+	--brand-200: #e9d5ff;
+	--brand-300: #d8b4fe;
+	--brand-400: #c084fc;
+	--brand-500: #a855f7;
+	--brand-600: #9333ea;
+	--brand-700: #7e22ce;
+	--brand-800: #6b21a8;
+	--brand-900: #581c87;
+	--brand-950: #3b0764;
+
+	/* Neutrals carry a trace of the brand hue, or pure grey next to violet reads dirty. Each step
+	   holds the exact OKLab lightness of the teal ladder it replaced — only the hue moved — so
+	   every contrast relationship and the whole sense of depth survive the swap unchanged. */
+	--neutral-0: #ffffff;
+	--neutral-25: #fbfbfc;
+	--neutral-50: #f6f6f8;
+	--neutral-100: #efeff2;
+	--neutral-150: #e7e7ea;
+	--neutral-200: #dcdbe0;
+	--neutral-300: #c5c4cb;
+	--neutral-400: #a09ea7;
+	/* A half-step, added for `fg-subtle`. See the note on that token below. */
+	--neutral-450: #8d8b95;
+	--neutral-500: #77767e;
+	--neutral-600: #5d5c64;
+	--neutral-700: #49484f;
+	--neutral-800: #323138;
+	--neutral-900: #201f26;
+	--neutral-950: #151419;
+	--neutral-1000: #0b0b0e;
+
+	--canvas-dark: #100f14;
+}
+
+/* ==========================================================================
+   Layer 2 — semantic tokens. THE ONLY PLACE THEMES ARE DEFINED.
+   Light is defined on bare :root so nothing depends on a media query.
+   ========================================================================== */
+
+:root {
+	--color-canvas: var(--neutral-25);
+	--color-surface: var(--neutral-0);
+	--color-surface-raised: var(--neutral-0);
+	--color-surface-sunken: var(--neutral-50);
+	/* The ground a row takes when the pointer is over it. Neither surface token can do this
+     job: `surface-sunken` is darker than the surface in both themes, which reads as pressed in
+     the light one and as a hole in the dark one, and `surface-raised` is identical to the
+     surface in light. Hover moves toward the viewer, so it lifts in the dark and settles in
+     the light, and that needs its own value per theme. */
+	--color-surface-hover: var(--neutral-150);
+	/* The ground behind a modal dialog. Darker in the light theme than in the dark one, and not
+     the same black at the same opacity in both: over a near-black canvas a 40% black scrim is
+     nearly invisible, which is the one thing an overlay must not be. */
+	--color-overlay: oklch(0.2 0.01 292 / 45%);
+
+	--color-border: var(--neutral-150);
+	--color-border-strong: var(--neutral-300);
+	/* The edge of a control the pointer is over. A field has to answer the pointer before it is
+     clicked — that is what says "this is where you type" — and it must not answer with the
+     focus colour, or hovering would look like focus. */
+	--color-border-hover: var(--neutral-400);
+	--color-border-focus: var(--brand-600);
+
+	--color-fg: var(--neutral-950);
+	--color-fg-muted: var(--neutral-600);
+	/* `neutral-400` measured 2.62:1 on a white surface, which fails the 3:1 that §9 of
+	   docs/design-system.md sets for UI text — and it had been failing since before the hue
+	   changed. `neutral-450` measures 3.35:1. It is still visibly the quietest text on the
+	   screen; it is now also readable. Anything a person must actually read takes `fg-muted`. */
+	--color-fg-subtle: var(--neutral-450);
+	--color-fg-on-accent: #ffffff;
+
+	/* The fill sits one step brighter than the teal it replaced could manage. `brand-600` is
+	   5.38:1 against white text — comfortably AA — and keeps its chroma under a projector, which
+	   is the whole reason for the change. `accent-fg` stays at 700: it is text on a light ground,
+	   where the extra contrast is worth more than the extra saturation. */
+	--color-accent: var(--brand-600);
+	--color-accent-hover: var(--brand-700);
+	--color-accent-active: var(--brand-800);
+	--color-accent-subtle: var(--brand-50);
+	--color-accent-fg: var(--brand-700);
+
+	--color-success: #15803d;
+	--color-success-bg: #ecfdf3;
+	--color-warning: #a15c07;
+	--color-warning-bg: #fef6e7;
+	--color-danger: #b42318;
+	--color-danger-hover: #912018;
+	--color-danger-bg: #fef3f2;
+	--color-info: #175cd3;
+	--color-info-bg: #eff4ff;
+
+	/* Identity — the avatar palette. Eight slots, picked by a hash of a row's id and never by a
+     name: a woman who marries changes her surname and must not change colour in the list.
+     Deliberately not the accent. docs/design-system.md §14 allows one accent hue and this is not one — it
+     carries no meaning, it only lets two adjacent rows tell themselves apart. */
+	--color-identity-1: #1d4ed8;
+	--color-identity-1-bg: #dbeafe;
+	--color-identity-2: #4338ca;
+	--color-identity-2-bg: #e0e7ff;
+	--color-identity-3: #0f766e;
+	--color-identity-3-bg: #ccfbf1;
+	--color-identity-4: #a21caf;
+	--color-identity-4-bg: #fae8ff;
+	--color-identity-5: #be123c;
+	--color-identity-5-bg: #ffe4e6;
+	--color-identity-6: #c2410c;
+	--color-identity-6-bg: #ffedd5;
+	--color-identity-7: #a16207;
+	--color-identity-7-bg: #fef3c7;
+	--color-identity-8: #334155;
+	--color-identity-8-bg: #e2e8f0;
+
+	/* Money graph — the six roles of the ТЗ. Sigma draws on WebGL and cannot read a CSS variable,
+	   so `src/views/graph` resolves these with getComputedStyle and hands sigma the hex. The legend
+	   and the node card print the role's name beside every chip: status is never colour alone.
+	   Consolidator is the warmest because it is where the money stops; peripheral is grey because
+	   it is most of the graph and must recede. */
+	--color-role-consolidator: #d92d20;
+	--color-role-coordinator: #a21caf;
+	--color-role-distributor: #dc6803;
+	--color-role-transit: #0e9384;
+	--color-role-terminal: #1570ef;
+	--color-role-peripheral: #98a2b3;
+
+	/* The graph canvas follows the theme. Light: a paper ground with deep, saturated role hues and
+	   darker translucent edges — near-white edges on white were the old failure, so the edge alpha is
+	   carried by a dark base here. Dark: a night sky where the brighter hues glow (the dark blocks
+	   below). Colours are #rrggbb or #rrggbbaa, which sigma's colour parser reads; edges take their
+	   source node's role colour and the canvas adds the alpha. `graph-dim` is dust: what a node
+	   becomes when something else is in focus. The legend keeps the theme's own `role-*` chips. */
+	--color-graph-bg: #fbfbfd;
+	--color-graph-edge: #4a485a2e;
+	--color-graph-edge-focus: #1f1d2acc;
+	--color-graph-dim: #9e9cab40;
+	--color-graph-label: #1f1d2a;
+	--color-graph-label-bg: #ffffffeb;
+	--color-graph-role-consolidator: #e5484d;
+	--color-graph-role-coordinator: #b43fd6;
+	--color-graph-role-distributor: #e38500;
+	--color-graph-role-transit: #0f9f8a;
+	--color-graph-role-terminal: #1f78e0;
+	--color-graph-role-peripheral: #a9a8b6;
+	--color-graph-cluster-1: #2563eb;
+	--color-graph-cluster-2: #ea580c;
+	--color-graph-cluster-3: #0d9488;
+	--color-graph-cluster-4: #c026d3;
+	--color-graph-cluster-5: #ca8a04;
+	--color-graph-cluster-6: #4f46e5;
+	--color-graph-cluster-7: #e11d48;
+	--color-graph-cluster-8: #475569;
+
+	/* Clusters carry no meaning beyond "these belong together", so they cycle through the identity
+	   palette rather than adding eight more hues. Defined through var(), so the dark theme follows
+	   the identity tokens' own dark values with no second definition. */
+	/* Reordered so neighbouring cluster ids get distant hues: identity 1 and 2 are both blue. */
+	--color-cluster-1: var(--color-identity-1);
+	--color-cluster-2: var(--color-identity-6);
+	--color-cluster-3: var(--color-identity-3);
+	--color-cluster-4: var(--color-identity-4);
+	--color-cluster-5: var(--color-identity-7);
+	--color-cluster-6: var(--color-identity-2);
+	--color-cluster-7: var(--color-identity-5);
+	--color-cluster-8: var(--color-identity-8);
+
+	--shadow-sm: 0 1px 2px rgb(11 11 14 / 0.06);
+	--shadow-md: 0 4px 12px rgb(11 11 14 / 0.08);
+	--shadow-lg: 0 12px 32px rgb(11 11 14 / 0.12);
+
+	color-scheme: light;
+}
+
+/* System preference, only when the user has not chosen explicitly. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--color-canvas: var(--canvas-dark);
+		--color-surface: #18171e;
+		--color-surface-raised: #212027;
+		--color-surface-sunken: #131217;
+		--color-surface-hover: #36343c;
+		--color-overlay: oklch(0 0 0 / 65%);
+
+		--color-border: #2e2d34;
+		--color-border-strong: #424149;
+		--color-border-hover: #5f5e67;
+		--color-border-focus: var(--brand-400);
+
+		--color-fg: #ecebf0;
+		--color-fg-muted: #a2a1ab;
+		--color-fg-subtle: #74737c;
+		--color-fg-on-accent: #2e1065;
+
+		--color-accent: var(--brand-400);
+		--color-accent-hover: var(--brand-300);
+		--color-accent-active: var(--brand-200);
+		--color-accent-subtle: #2a1147;
+		--color-accent-fg: var(--brand-300);
+
+		--color-success: #5bd68c;
+		--color-success-bg: #0e2a1b;
+		--color-warning: #f5b942;
+		--color-warning-bg: #2e2109;
+		--color-danger: #f98080;
+		--color-danger-hover: #f97066;
+		--color-danger-bg: #2e1311;
+		--color-info: #84adff;
+		--color-info-bg: #111c33;
+
+		--color-identity-1: #93c5fd;
+		--color-identity-1-bg: #17294d;
+		--color-identity-2: #a5b4fc;
+		--color-identity-2-bg: #1f2150;
+		--color-identity-3: #5eead4;
+		--color-identity-3-bg: #12332f;
+		--color-identity-4: #f0abfc;
+		--color-identity-4-bg: #3f1341;
+		--color-identity-5: #fda4af;
+		--color-identity-5-bg: #4a1420;
+		--color-identity-6: #fdba74;
+		--color-identity-6-bg: #47220c;
+		--color-identity-7: #fcd34d;
+		--color-identity-7-bg: #402d09;
+		--color-identity-8: #cbd5e1;
+		--color-identity-8-bg: #1e293b;
+
+		--color-role-consolidator: #f97066;
+		--color-role-coordinator: #e879f9;
+		--color-role-distributor: #fdb022;
+		--color-role-transit: #2ed3b7;
+		--color-role-terminal: #53b1fd;
+		--color-role-peripheral: #6b6a75;
+
+		--color-graph-bg: #07060c;
+		--color-graph-edge: #a2a1ab1f;
+		--color-graph-edge-focus: #ecebf0d9;
+		--color-graph-dim: #6b6a7a3a;
+		--color-graph-label: #e9e8f0;
+		--color-graph-label-bg: #14121ce6;
+		--color-graph-role-consolidator: #ff5d6c;
+		--color-graph-role-coordinator: #ea7bff;
+		--color-graph-role-distributor: #ffb224;
+		--color-graph-role-transit: #2ee8c6;
+		--color-graph-role-terminal: #52b6ff;
+		--color-graph-role-peripheral: #5d5c70;
+		--color-graph-cluster-1: #93c5fd;
+		--color-graph-cluster-2: #fdba74;
+		--color-graph-cluster-3: #5eead4;
+		--color-graph-cluster-4: #f0abfc;
+		--color-graph-cluster-5: #fcd34d;
+		--color-graph-cluster-6: #a5b4fc;
+		--color-graph-cluster-7: #fda4af;
+		--color-graph-cluster-8: #cbd5e1;
+
+		--shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+		--shadow-md: 0 4px 12px rgb(0 0 0 / 0.5);
+		--shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+
+		color-scheme: dark;
+	}
+}
+
+/* Explicit choice wins in both directions. */
+:root[data-theme='dark'] {
+	--color-canvas: var(--canvas-dark);
+	--color-surface: #18171e;
+	--color-surface-raised: #212027;
+	--color-surface-sunken: #131217;
+	--color-surface-hover: #36343c;
+	--color-overlay: oklch(0 0 0 / 65%);
+
+	--color-border: #2e2d34;
+	--color-border-strong: #424149;
+	--color-border-hover: #5f5e67;
+	--color-border-focus: var(--brand-400);
+
+	--color-fg: #ecebf0;
+	--color-fg-muted: #a2a1ab;
+	--color-fg-subtle: #74737c;
+	--color-fg-on-accent: #2e1065;
+
+	--color-accent: var(--brand-400);
+	--color-accent-hover: var(--brand-300);
+	--color-accent-active: var(--brand-200);
+	--color-accent-subtle: #2a1147;
+	--color-accent-fg: var(--brand-300);
+
+	--color-success: #5bd68c;
+	--color-success-bg: #0e2a1b;
+	--color-warning: #f5b942;
+	--color-warning-bg: #2e2109;
+	--color-danger: #f98080;
+	--color-danger-hover: #f97066;
+	--color-danger-bg: #2e1311;
+	--color-info: #84adff;
+	--color-info-bg: #111c33;
+
+	--color-identity-1: #93c5fd;
+	--color-identity-1-bg: #17294d;
+	--color-identity-2: #a5b4fc;
+	--color-identity-2-bg: #1f2150;
+	--color-identity-3: #5eead4;
+	--color-identity-3-bg: #12332f;
+	--color-identity-4: #f0abfc;
+	--color-identity-4-bg: #3f1341;
+	--color-identity-5: #fda4af;
+	--color-identity-5-bg: #4a1420;
+	--color-identity-6: #fdba74;
+	--color-identity-6-bg: #47220c;
+	--color-identity-7: #fcd34d;
+	--color-identity-7-bg: #402d09;
+	--color-identity-8: #cbd5e1;
+	--color-identity-8-bg: #1e293b;
+
+	--color-role-consolidator: #f97066;
+	--color-role-coordinator: #e879f9;
+	--color-role-distributor: #fdb022;
+	--color-role-transit: #2ed3b7;
+	--color-role-terminal: #53b1fd;
+	--color-role-peripheral: #6b6a75;
+
+	--color-graph-bg: #07060c;
+	--color-graph-edge: #a2a1ab1f;
+	--color-graph-edge-focus: #ecebf0d9;
+	--color-graph-dim: #6b6a7a3a;
+	--color-graph-label: #e9e8f0;
+	--color-graph-label-bg: #14121ce6;
+	--color-graph-role-consolidator: #ff5d6c;
+	--color-graph-role-coordinator: #ea7bff;
+	--color-graph-role-distributor: #ffb224;
+	--color-graph-role-transit: #2ee8c6;
+	--color-graph-role-terminal: #52b6ff;
+	--color-graph-role-peripheral: #5d5c70;
+	--color-graph-cluster-1: #93c5fd;
+	--color-graph-cluster-2: #fdba74;
+	--color-graph-cluster-3: #5eead4;
+	--color-graph-cluster-4: #f0abfc;
+	--color-graph-cluster-5: #fcd34d;
+	--color-graph-cluster-6: #a5b4fc;
+	--color-graph-cluster-7: #fda4af;
+	--color-graph-cluster-8: #cbd5e1;
+
+	--shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+	--shadow-md: 0 4px 12px rgb(0 0 0 / 0.5);
+	--shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+
+	color-scheme: dark;
+}
+
+/* ==========================================================================
+   Layer 2b — schedule status tokens. Colour is never the only signal;
+   each state also differs in border, fill or label.
+   ========================================================================== */
+
+:root {
+	--status-free-bg: var(--color-surface);
+	--status-free-border: var(--color-border-strong);
+	--status-booked-bg: var(--color-surface-raised);
+	--status-booked-accent: var(--color-accent);
+	--status-suspended-bg: var(--color-warning-bg);
+	--status-suspended-accent: var(--color-warning);
+	--status-cancelled-bg: var(--color-surface-sunken);
+	--status-cancelled-fg: var(--color-fg-subtle);
+	--status-unavailable-bg: var(--color-surface-sunken);
+	--status-conflict-accent: var(--color-danger);
+}
+
+/* ==========================================================================
+   Tailwind bridge — expose semantic tokens as utilities.
+   ========================================================================== */
+
+@theme inline {
+	--color-canvas: var(--color-canvas);
+	--color-surface: var(--color-surface);
+	--color-surface-raised: var(--color-surface-raised);
+	--color-surface-sunken: var(--color-surface-sunken);
+	--color-surface-hover: var(--color-surface-hover);
+	--color-overlay: var(--color-overlay);
+	--color-border: var(--color-border);
+	--color-border-strong: var(--color-border-strong);
+	--color-border-hover: var(--color-border-hover);
+	--color-fg: var(--color-fg);
+	--color-fg-muted: var(--color-fg-muted);
+	--color-fg-subtle: var(--color-fg-subtle);
+	--color-accent: var(--color-accent);
+	--color-accent-hover: var(--color-accent-hover);
+	--color-accent-subtle: var(--color-accent-subtle);
+	--color-accent-fg: var(--color-accent-fg);
+	--color-on-accent: var(--color-fg-on-accent);
+	--color-success: var(--color-success);
+	--color-warning: var(--color-warning);
+	--color-danger: var(--color-danger);
+	--color-danger-hover: var(--color-danger-hover);
+	--color-info: var(--color-info);
+
+	/* The tinted grounds each hue sits on. Named -subtle to match --color-accent-subtle;
+     bg-danger-bg would have read like a stutter at every call site. */
+	--color-success-subtle: var(--color-success-bg);
+	--color-warning-subtle: var(--color-warning-bg);
+	--color-danger-subtle: var(--color-danger-bg);
+	--color-info-subtle: var(--color-info-bg);
+
+	--color-identity-1: var(--color-identity-1);
+	--color-identity-1-subtle: var(--color-identity-1-bg);
+	--color-identity-2: var(--color-identity-2);
+	--color-identity-2-subtle: var(--color-identity-2-bg);
+	--color-identity-3: var(--color-identity-3);
+	--color-identity-3-subtle: var(--color-identity-3-bg);
+	--color-identity-4: var(--color-identity-4);
+	--color-identity-4-subtle: var(--color-identity-4-bg);
+	--color-identity-5: var(--color-identity-5);
+	--color-identity-5-subtle: var(--color-identity-5-bg);
+	--color-identity-6: var(--color-identity-6);
+	--color-identity-6-subtle: var(--color-identity-6-bg);
+	--color-identity-7: var(--color-identity-7);
+	--color-identity-7-subtle: var(--color-identity-7-bg);
+	--color-identity-8: var(--color-identity-8);
+	--color-identity-8-subtle: var(--color-identity-8-bg);
+
+	--color-role-consolidator: var(--color-role-consolidator);
+	--color-role-coordinator: var(--color-role-coordinator);
+	--color-role-distributor: var(--color-role-distributor);
+	--color-role-transit: var(--color-role-transit);
+	--color-role-terminal: var(--color-role-terminal);
+	--color-role-peripheral: var(--color-role-peripheral);
+	--color-graph-bg: var(--color-graph-bg);
+	--color-graph-label: var(--color-graph-label);
+
+	/* docs/design-system.md §8: 120–180ms, ease-out. Tailwind's own defaults are 150ms — inside the range —
+     with `cubic-bezier(0.4, 0, 0.2, 1)`, which is ease-in-out: it starts slow, so a hover
+     feels late before it feels fast. Set here rather than at every call site, so that plain
+     `transition-colors` is already the house motion and nobody has to remember a duration. */
+	--default-transition-duration: 150ms;
+	--default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+
+	--font-sans:
+		var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+		sans-serif;
+
+	--radius-sm: 6px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+
+	--text-xs: 12px;
+	--text-sm: 13px;
+	--text-base: 14px;
+	--text-md: 16px;
+	--text-lg: 18px;
+	--text-xl: 20px;
+	--text-2xl: 24px;
+	--text-3xl: 30px;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+html {
+	background-color: var(--color-canvas);
+}
+
+body {
+	background-color: var(--color-canvas);
+	color: var(--color-fg);
+	font-size: 14px;
+	line-height: 20px;
+	-webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Tailwind v4 dropped `button { cursor: pointer }` from preflight to match the browser's own
+   default, and the whole application quietly went back to an arrow. Restored deliberately.
+
+   The argument against is real: the CSS spec ties `pointer` to links, and browsers withhold it
+   from buttons on purpose. The argument for wins here. This is an operational tool used by
+   administrators at a desktop all day, every product they already use points at its buttons,
+   and consistency inside one interface beats consistency with a spec nobody reads. Disabled
+   controls keep the arrow, because they are not clickable and should not claim to be. */
+button:not(:disabled),
+[role='button']:not(:disabled),
+select:not(:disabled),
+label:has(> input[type='checkbox']:not(:disabled)),
+summary {
+	cursor: pointer;
+}
+
+:focus-visible {
+	outline: 2px solid var(--color-border-focus);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
+}

@@ -1,0 +1,6 @@
+# Files that are executed inside a Linux container must keep LF endings whatever the
+# checkout platform does. A CRLF in the Postgres init script makes it fail on the first
+# line, with an error that blames the shebang rather than the line ending.
+*.sh text eol=lf
+docker/** text eol=lf
+docker-compose.yml text eol=lf
