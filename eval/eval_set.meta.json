@@ -1,0 +1,11 @@
+{
+	"analysisSha256": "75897b6de9dfc2bbd9533e7a521d85aef0e9d2eddde2598af82f9a3f14f784c5",
+	"items": 40,
+	"kinds": {
+		"типовой": 25,
+		"пограничный": 4,
+		"отказ": 11
+	},
+	"seed": 42,
+	"setSha256": "7f7aef6e982d77b83cb7e49c244aeb2dfb8d64ed04806c9dd4b209636cce4177"
+}
