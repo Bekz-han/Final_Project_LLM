@@ -58,6 +58,14 @@ const envSchema = z
 		LLM_MODEL: z.preprocess(blank, z.string().min(1).default('gpt-5')),
 
 		/**
+		 * The provider's price per million tokens, in USD, for the cost of each answer. Defaults are
+		 * gpt-6-luna's list prices on 23 September 2026 ($0.10 in, $0.50 out); set them for another
+		 * model, or every cost the notebook reports is wrong.
+		 */
+		LLM_PRICE_INPUT_PER_MTOK: z.preprocess(blank, z.coerce.number().nonnegative().default(0.1)),
+		LLM_PRICE_OUTPUT_PER_MTOK: z.preprocess(blank, z.coerce.number().nonnegative().default(0.5)),
+
+		/**
 		 * Which way the agent talks to a model.
 		 *
 		 * `responses` — OpenAI's Responses API. The default, and the only one with hosted tools

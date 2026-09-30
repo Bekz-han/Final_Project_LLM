@@ -1,5 +1,5 @@
 import { chatRequestSchema, chatResponseSchema } from '@server/agent/model/agent.schema';
-import { runAgent } from '@server/agent/usecase/agent';
+import { newTraceId, runAgent } from '@server/agent/usecase/agent';
 import { createCtx } from '@server/kernel/ctx';
 
 /**
@@ -30,15 +30,20 @@ export async function POST(request: Request): Promise<Response> {
 		return Response.json({ message: INVALID_REQUEST_MESSAGE }, { status: 400 });
 	}
 
+	// Minted before the turn, so a failed turn is logged under the same id the caller is told.
+	const traceId = newTraceId();
+
 	try {
-		const result = await runAgent(createCtx(), parsedInput.data);
+		const result = await runAgent(createCtx(), { ...parsedInput.data, traceId });
 
 		return Response.json(chatResponseSchema.parse(result));
 	} catch (error) {
 		// The detail goes to the server log, never to the browser: a provider error message can
 		// carry an endpoint, a model name or part of a key.
-		process.stderr.write(`Chat request failed: ${error instanceof Error ? error.message : String(error)}\n`);
+		process.stderr.write(
+			`Chat request ${traceId} failed: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
 
-		return Response.json({ message: SERVER_ERROR_MESSAGE }, { status: 500 });
+		return Response.json({ message: SERVER_ERROR_MESSAGE, traceId }, { status: 500 });
 	}
 }

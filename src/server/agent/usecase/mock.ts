@@ -1,4 +1,4 @@
-import { type ChatMessage, type ChatResponse, type ToolCall } from '@server/agent/model/agent.schema';
+import { type ChatMessage, type ToolCall, type TurnResult } from '@server/agent/model/agent.schema';
 import {
 	type ClusterRow,
 	type Collector,
@@ -128,14 +128,14 @@ class Turn {
 	}
 
 	/** The honest reply when a tool failed or refused. `null` when the call succeeded. */
-	problem(call: ToolCall): ChatResponse | null {
+	problem(call: ToolCall): TurnResult | null {
 		if (call.status === 'error') return this.reply(`Инструмент «${call.label}» не сработал: ${String(call.result)}`);
 		if (isRefusal(call.result)) return this.reply(`Инструмент «${call.label}» отказал: ${call.result.reason}`);
 
 		return null;
 	}
 
-	reply(text: string): ChatResponse {
+	reply(text: string): TurnResult {
 		return { reply: text, toolCalls: this.calls };
 	}
 }
@@ -148,7 +148,7 @@ function lastUserText(messages: readonly ChatMessage[]): string {
  * «Этих пятерых»: the gids the question names; failing that, the ones the previous answer named;
  * failing that, the top of the priority list — fetched through the tool, so it shows in the panel.
  */
-function sources(turn: Turn, messages: readonly ChatMessage[]): ChatResponse | string[] {
+function sources(turn: Turn, messages: readonly ChatMessage[]): string[] | TurnResult {
 	const text = lastUserText(messages).toLowerCase();
 	const named = gidsIn(text);
 
@@ -187,7 +187,7 @@ function describeNode(node: NodeRow): string {
 	);
 }
 
-function topTurn(turn: Turn, limit: number): ChatResponse {
+function topTurn(turn: Turn, limit: number): TurnResult {
 	const top = turn.call('get_top_nodes', { limit });
 	const failed = turn.problem(top);
 
@@ -209,7 +209,7 @@ function topTurn(turn: Turn, limit: number): ChatResponse {
 	);
 }
 
-function collectorsTurn(turn: Turn, messages: readonly ChatMessage[]): ChatResponse {
+function collectorsTurn(turn: Turn, messages: readonly ChatMessage[]): TurnResult {
 	const from = sources(turn, messages);
 
 	if (!Array.isArray(from)) return from;
@@ -243,7 +243,7 @@ function collectorsTurn(turn: Turn, messages: readonly ChatMessage[]): ChatRespo
 	);
 }
 
-function removalTurn(turn: Turn, messages: readonly ChatMessage[]): ChatResponse {
+function removalTurn(turn: Turn, messages: readonly ChatMessage[]): TurnResult {
 	const text = lastUserText(messages);
 	const named = gidsIn(text);
 	let removed: string[];
@@ -279,7 +279,7 @@ function removalTurn(turn: Turn, messages: readonly ChatMessage[]): ChatResponse
 	);
 }
 
-function gapsTurn(turn: Turn): ChatResponse {
+function gapsTurn(turn: Turn): TurnResult {
 	const gaps = turn.call('coverage_gaps', {});
 	const failed = turn.problem(gaps);
 
@@ -294,7 +294,7 @@ function gapsTurn(turn: Turn): ChatResponse {
 	return turn.reply(`Чего данные не показывают:\n${lines.join('\n')}`);
 }
 
-function clusterTurn(turn: Turn, clusterId: number): ChatResponse {
+function clusterTurn(turn: Turn, clusterId: number): TurnResult {
 	const found = turn.call('get_cluster', { clusterId });
 	const failed = turn.problem(found);
 
@@ -318,7 +318,7 @@ function clusterTurn(turn: Turn, clusterId: number): ChatResponse {
 	);
 }
 
-function flowTurn(turn: Turn, input: { direction: 'down' | 'up'; gid: string }): ChatResponse {
+function flowTurn(turn: Turn, input: { direction: 'down' | 'up'; gid: string }): TurnResult {
 	const traced = turn.call('trace_flow', input);
 	const failed = turn.problem(traced);
 
@@ -336,7 +336,7 @@ function flowTurn(turn: Turn, input: { direction: 'down' | 'up'; gid: string }):
 	);
 }
 
-function nodeTurn(turn: Turn, gid: string): ChatResponse {
+function nodeTurn(turn: Turn, gid: string): TurnResult {
 	const card = turn.call('get_node', { gid });
 	const failed = turn.problem(card);
 
@@ -356,7 +356,7 @@ function nodeTurn(turn: Turn, gid: string): ChatResponse {
 	);
 }
 
-function clockTurn(turn: Turn): ChatResponse {
+function clockTurn(turn: Turn): TurnResult {
 	const call = turn.call('get_current_time', {});
 	const failed = turn.problem(call);
 
@@ -367,7 +367,7 @@ function clockTurn(turn: Turn): ChatResponse {
 	return turn.reply(`Сценарный режим, модель не подключена. Часы сервера: ${time.local} (${time.timeZone}).`);
 }
 
-export function runMock(ctx: Ctx, input: { messages: readonly ChatMessage[] }): ChatResponse {
+export function runMock(ctx: Ctx, input: { messages: readonly ChatMessage[] }): TurnResult {
 	const turn = new Turn(ctx);
 	const text = lastUserText(input.messages);
 	const question = text.toLowerCase();
