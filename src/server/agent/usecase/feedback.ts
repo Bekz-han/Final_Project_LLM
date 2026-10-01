@@ -3,6 +3,7 @@ import { type Ctx } from '@server/kernel/ctx';
 import { sendScore } from '@server/kernel/tracing';
 import 'server-only';
 import { z } from 'zod';
+import { maskPii } from './pii';
 import { saveFeedback } from './sessions';
 
 /**
@@ -43,7 +44,8 @@ export async function recordFeedback(ctx: Ctx, feedback: Feedback): Promise<Feed
 	}
 
 	const sent = await sendScore({
-		comment: feedback.comment,
+		// A complaint is free text too, and it goes to the same tracker.
+		comment: feedback.comment === undefined ? undefined : maskPii(feedback.comment).text,
 		name: 'user_feedback',
 		traceId: feedback.traceId,
 		value: feedback.value,

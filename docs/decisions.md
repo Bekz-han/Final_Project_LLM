@@ -115,3 +115,13 @@ after 16 September 2026, and the legacy read APIs answer 410. Caught only becaus
 read back through `GET /api/public/v2/observations`, not trusted from the absence of an error.
 Chosen over: the Langfuse JS SDK (four OpenTelemetry packages and a global provider for one POST
 per turn) and the ingestion endpoint (silently dead for this account).
+
+**01.10 — Personal data is masked first, in `/api/chat`, by pattern (course project).**
+`src/server/agent/usecase/pii.ts`. ИИН/БИН, card, KZ IBAN, phone and email are replaced before the
+model, the trace and the session store see the text; the trace keeps only counts by kind. The hard
+part is not masking but *not* masking: questions here are full of 18-digit gids and 12-digit amounts.
+Digit patterns refuse to start or end inside a longer digit run; an unlabelled 12-digit number is an
+ИИН only with a valid control digit **and** a month 01–12 in YYMM — the test found that the round
+amount 150000000000 passes the control digit alone. Chosen over: an NER model (a second model call
+per turn for a pattern problem) and masking in the trace exporter only (the provider and the disk
+would still get the value).

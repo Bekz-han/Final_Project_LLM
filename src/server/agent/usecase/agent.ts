@@ -14,6 +14,7 @@ import { randomBytes } from 'node:crypto';
 import 'server-only';
 import { type ChatMessageParam, createClient, type ResponseItem, type ResponsesTool, withRetry } from './client';
 import { runMock } from './mock';
+import { type PiiCounts } from './pii';
 import { chatToolDefinitions, executeTool, responsesToolDefinitions } from './tools';
 import { type CallUsage, NO_USAGE, UsageMeter } from './usage';
 import { type VariantSetup, variantSetup } from './variants';
@@ -43,6 +44,8 @@ const MAX_TURNS = 10;
 
 export interface AgentInput {
 	messages: readonly ChatMessage[];
+	/** What `maskPii` replaced in this request, by kind. Counts only — the values never get here. */
+	pii?: PiiCounts | undefined;
 	/** Groups a conversation's turns in the trace view. */
 	sessionId?: string | undefined;
 	/** Minted here when the caller has none. */
@@ -352,12 +355,14 @@ export async function runAgent(ctx: Ctx, input: AgentInput): Promise<ChatRespons
 	const variant = input.variant ?? 'step2';
 	const traceId = input.traceId ?? newTraceId();
 	const meter = new UsageMeter();
+	const pii = input.pii ?? {};
+	const masked = Object.keys(pii).length > 0;
 	const trace = new Trace({
 		input: input.messages.at(-1)?.content ?? '',
-		metadata: { model: env.LLM_MODEL, provider: env.LLM_PROVIDER, turns: input.messages.length, variant },
+		metadata: { model: env.LLM_MODEL, pii, provider: env.LLM_PROVIDER, turns: input.messages.length, variant },
 		name: 'agent turn',
 		sessionId: input.sessionId,
-		tags: [variant, env.LLM_PROVIDER],
+		tags: masked ? [variant, env.LLM_PROVIDER, 'pii-masked'] : [variant, env.LLM_PROVIDER],
 		traceId,
 		userId: input.userId,
 	});

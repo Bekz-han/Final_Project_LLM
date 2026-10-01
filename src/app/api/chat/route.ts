@@ -1,5 +1,6 @@
 import { chatRequestSchema, chatResponseSchema } from '@server/agent/model/agent.schema';
 import { newTraceId, runAgent } from '@server/agent/usecase/agent';
+import { maskMessages } from '@server/agent/usecase/pii';
 import { saveExchange } from '@server/agent/usecase/sessions';
 import { createCtx } from '@server/kernel/ctx';
 
@@ -10,6 +11,9 @@ import { createCtx } from '@server/kernel/ctx';
  * that object ourselves — but it is what stops a change in the usecase from reaching the browser
  * as `undefined` in the activity panel, which is the kind of thing nobody notices until it is on
  * a projector.
+ *
+ * Personal data is masked first, before the model, the trace or the stored conversation sees the
+ * text: what is not written cannot leak. See `pii.ts`.
  *
  * Errors come back as a written sentence, not a status code. The interface shows what this says.
  */
@@ -36,8 +40,9 @@ export async function POST(request: Request): Promise<Response> {
 
 	try {
 		const ctx = createCtx();
-		const result = await runAgent(ctx, { ...parsedInput.data, traceId });
-		const { messages, sessionId } = parsedInput.data;
+		const { found, messages } = maskMessages(parsedInput.data.messages);
+		const result = await runAgent(ctx, { ...parsedInput.data, messages, pii: found, traceId });
+		const { sessionId } = parsedInput.data;
 
 		if (sessionId !== undefined) {
 			// The answer is already made; a disk that refuses the record must not take it away.
