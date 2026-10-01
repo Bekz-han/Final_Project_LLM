@@ -37,10 +37,11 @@ export const chatMessageSchema = z.object({
  * - `step1b` — the same prompt plus the analysis summary pasted into it: the top list, role counts,
  *              clusters. The honest alternative to tools.
  * - `step2`  — the product: the prompt, the few-shot examples and the seven graph tools.
+ * - `step2plus` — the product with one change: a role is explained money first (see `prompt.ts`).
  *
  * The interface always asks for `step2`; the others exist for the notebook's measurements.
  */
-export const VARIANTS = ['step0', 'step1', 'step1b', 'step2'] as const;
+export const VARIANTS = ['step0', 'step1', 'step1b', 'step2', 'step2plus'] as const;
 export const variantSchema = z.enum(VARIANTS);
 
 /** Opaque ids from the caller, carried into the trace. Bounded so a trace cannot be flooded. */

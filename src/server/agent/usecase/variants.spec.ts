@@ -306,3 +306,19 @@ describe('the trace of a turn', () => {
 		expect(root?.status.code).toBe(2);
 	});
 });
+
+describe('step 2+, the one change on top of the product', () => {
+	it('differs from step 2 only in how a role is explained, and keeps the tools and examples', () => {
+		const two = variantSetup('step2', ANALYSIS);
+		const plus = variantSetup('step2plus', ANALYSIS);
+		const before = (two.system ?? '').split('\n\n');
+		const after = (plus.system ?? '').split('\n\n');
+		const changed = after.filter((paragraph) => !before.includes(paragraph));
+
+		expect(plus.tools).toBe(true);
+		expect(plus.fewShot).toBe(two.fewShot);
+		expect(after).toHaveLength(before.length);
+		expect(changed).toHaveLength(1);
+		expect(changed[0]).toMatch(/^EXPLAINING A ROLE: .*money first/su);
+	});
+});

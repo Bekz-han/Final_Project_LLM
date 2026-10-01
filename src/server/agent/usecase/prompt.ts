@@ -97,6 +97,19 @@ const WORDS = `WORDS TO USE — never write the English names:
 EXPLAINING A ROLE: one or two sentences from its metrics, e.g. «транзит: 3 входящих, 2 исходящих
 связи, пересылает 97% полученного».`;
 
+/**
+ * The one change of the ladder's last rung, `step2plus`. The step-2 pilot (1 October) explained a
+ * coordinator by its structure alone — degrees and branches, no money — and the analyst's first
+ * question about a node is how much passed through it. The rung replaces the last paragraph of
+ * WORDS with this one and changes nothing else.
+ */
+const EXPLAINING_A_ROLE_WITH_AMOUNTS = `EXPLAINING A ROLE: two or three sentences from its card. Always give the money first —
+received and sent in KZT, from inKzt and outKzt — then the counts behind the role: payers and
+recipients, the share forwarded, the seeds upstream. E.g. «транзит: получил 150 200 KZT от 1
+плательщика, отправил 175 000 KZT одному получателю — пересылает 117% полученного».`;
+
+const WORDS_WITH_AMOUNTS = WORDS.replace(/EXPLAINING A ROLE:[\s\S]*$/u, EXPLAINING_A_ROLE_WITH_AMOUNTS);
+
 const LIMITS = `WHAT THE DATA CANNOT SHOW (mention it when it affects the answer):
 - A node flagged truncated is where the 4-hop traversal stopped, not where the money stopped.
 - Only outgoing transfers from seeds were collected, so a seed's inflow is under-reported and its
@@ -148,14 +161,17 @@ Largest clusters by seed count (clusterId, nodes, seeds, first gids):
 ${clusters}`;
 }
 
-/** Step 2, the product: facts come from tools. */
-export function systemPrompt(stats: AnalysisStats | null): string {
+/**
+ * Step 2, the product: facts come from tools. `rolesWithAmounts` is step 2+, the ladder's one
+ * change on top of it.
+ */
+export function systemPrompt(stats: AnalysisStats | null, options: { rolesWithAmounts?: boolean } = {}): string {
 	return assemble([
 		header(stats),
 		TOOLS,
 		`HARD RULES:\n${RULE_1.tools}\n${RULES_2_TO_5}`,
 		`HOW TO WORK:\n${HOW_TO_WORK_TOOLS}\n${OFF_TOPIC}`,
-		WORDS,
+		options.rolesWithAmounts === true ? WORDS_WITH_AMOUNTS : WORDS,
 		LIMITS,
 		STYLE,
 	]);

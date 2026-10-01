@@ -14,6 +14,7 @@ import { promptWithContext, promptWithoutData, systemPrompt } from './prompt';
  * | step1   | contract, no data             | yes      | no    |
  * | step1b  | contract + analysis summary   | yes      | no    |
  * | step2   | contract, facts from tools    | yes      | yes   |
+ * | step2plus | step 2, roles explained money first | yes | yes |
  */
 export interface VariantSetup {
 	/** Worked examples placed before the conversation. */
@@ -80,6 +81,9 @@ export function variantSetup(variant: Variant, analysis: Analysis | null): Varia
 				system: analysis === null ? promptWithoutData(stats) : promptWithContext(analysis),
 				tools: false,
 			};
+
+		case 'step2plus':
+			return { fewShot: FEW_SHOT, system: systemPrompt(stats, { rolesWithAmounts: true }), tools: true };
 
 		case 'step2':
 		default:
